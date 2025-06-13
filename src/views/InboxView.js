@@ -1,83 +1,63 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import TaskDetailView from '../components/TaskDetailView';
-import IconBadge from '../components/IconBadge';
+import Badge from '../components/Badge';
 import { formatRelativeTime } from '../utils/helpers';
-import { Play, CheckCircle, XCircle, ChevronRight, Loader2 } from 'lucide-react';
+import { Play, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 const TaskListItem = ({ task, onSelect, isSelected, onQuickTransition, updatingTaskId }) => {
-    const departmentAndLabel = ` ${task.department || ''}${task.biCategory ?  ` - ${task.biCategory}`  : ''} `;
+    const departmentAndLabel = ` ${task.department || ''}${task.biCategory ? ` - ${task.biCategory}` : ''} `;
     const isUpdating = task.id === updatingTaskId;
     const isClosed = task.status.toLowerCase().includes('done') || task.status.toLowerCase().includes('cancelled');
 
-    // Try multiple possible date fields
     const createdDate = task.created || task.createdDate || task.createdAt || task.lastUpdated || new Date().toISOString();
     const timeDisplay = formatRelativeTime(createdDate);
 
     return (
         <div
             onClick={() => !isUpdating && onSelect(task)}
-            className={`group relative flex justify-between items-center p-4 border-b border-gray-200 transition-opacity ${isSelected ? 'bg-indigo-100' : 'hover:bg-gray-50'} ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            className={`group relative flex flex-col gap-2 p-4 border-b border-gray-200 transition-colors duration-150 ${isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'} ${isClosed ? 'bg-slate-100' : ''} ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         >
-            {/* Left side content */}
-            <div className="flex flex-col gap-1.5 min-w-0 pr-4">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 flex-shrink-0">{task.id}</span>
-                    <p className="font-semibold text-gray-800 break-words truncate">{task.title}</p>
-                </div>
-                <div className="flex items-center gap-3 text-xs">
-                    <span className="text-gray-600">{departmentAndLabel.trim()}</span>
-                    {timeDisplay && (
-                        <>
-                            <span className="text-gray-400">•</span>
-                            <span className="text-gray-500 font-medium">{timeDisplay}</span>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {/* Right Side Content Wrapper */}
-            <div className="relative flex items-center flex-shrink-0 ml-4 h-full">
-                {isUpdating ? (
-                    <div className="flex items-center justify-center w-full h-full px-4">
-                        <Loader2 className="animate-spin text-gray-500" />
-                    </div>
-                ) : (
-                    <>
-                        {/* Default content (badges) */}
-                        <div className={`flex items-center gap-2 transition-opacity duration-200 ${isClosed ? 'opacity-0' : 'group-hover:opacity-0'}`}>
-                            <div className="flex items-center gap-1">
-                                <IconBadge type="priority" task={task} />
-                                <IconBadge type="timeliness" task={task} />
-                            </div>
-                            <ChevronRight size={16} className="text-gray-400" />
-                        </div>
-                        
-                        {/* Quick Actions Overlay */}
-                        <div className="absolute inset-0 z-10 flex justify-end items-center transition-opacity duration-200 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
-                            <div className="flex items-center space-x-1 p-1 bg-white border border-gray-200 rounded-full shadow-sm">
-                                <button title="In Progress" onClick={(e) => { e.stopPropagation(); onQuickTransition(task.id, 'in progress'); }} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-100 rounded-full">
-                                    <Play size={16} />
-                                </button>
-                                <button title="Done" onClick={(e) => { e.stopPropagation(); onQuickTransition(task.id, 'done'); }} className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-100 rounded-full">
-                                    <CheckCircle size={16} />
-                                </button>
-                                <button title="Cancel" onClick={(e) => { e.stopPropagation(); onQuickTransition(task.id, 'cancelled'); }} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded-full">
-                                    <XCircle size={16} />
-                                </button>
-                            </div>
-                        </div>
-                    </>
-                )}
-            </div>
-            
-            {/* "Close" Text Overlay */}
-            {isClosed && (
-                <div className={`absolute inset-0 flex items-center justify-end p-4 pointer-events-none select-none transition-opacity duration-200 group-hover:opacity-0`}>
-                    <h2 className="text-6xl font-black text-gray-900/[.07] break-words leading-none">
-                        Close
-                    </h2>
+            {isUpdating && (
+                 <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center z-20">
+                    <Loader2 className="animate-spin text-gray-500" />
                 </div>
             )}
+            
+            <div className="flex justify-between items-center text-xs text-gray-500">
+                <span>{task.id}</span>
+                <span>{timeDisplay}</span>
+            </div>
+
+            <div className="flex justify-between items-start">
+                 <p className={`font-bold break-words pr-2 ${isClosed ? 'text-gray-600' : 'text-gray-900'}`}>{task.title}</p>
+                {isClosed && <span className="text-sm text-gray-500 flex-shrink-0 transition-opacity duration-150 group-hover:opacity-0">Close</span>}
+            </div>
+
+            <p className={`text-sm ${isClosed ? 'text-gray-500' : 'text-gray-600'}`}>{departmentAndLabel.trim()}</p>
+
+            {/* Badges container - ONLY render for open tasks to remove empty space on closed tasks */}
+            {!isClosed && (
+                <div className="h-7 mt-1 flex items-center gap-2">
+                    <Badge type="priority" task={task} />
+                    <Badge type="timeliness" task={task} />
+                    <Badge type="status" task={task} />
+                </div>
+            )}
+
+            {/* Quick Actions - always in DOM for hover */}
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex justify-end items-center transition-opacity duration-200 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
+                <div className="flex items-center space-x-1 p-1 bg-white border border-gray-200 rounded-full shadow-sm">
+                    <button title="In Progress" onClick={(e) => { e.stopPropagation(); onQuickTransition(task.id, 'in progress'); }} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-100 rounded-full">
+                        <Play size={16} />
+                    </button>
+                    <button title="Done" onClick={(e) => { e.stopPropagation(); onQuickTransition(task.id, 'done'); }} className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-100 rounded-full">
+                        <CheckCircle size={16} />
+                    </button>
+                    <button title="Cancel" onClick={(e) => { e.stopPropagation(); onQuickTransition(task.id, 'cancelled'); }} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded-full">
+                        <XCircle size={16} />
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
@@ -95,7 +75,7 @@ const InboxView = ({ tasks, activeTaskCount, onUpdateTask, onQuickTransition, up
         } else {
             setSelectedTask(null);
         }
-    }, [tasks]);
+    }, [tasks, selectedTask?.id]);
 
     const sortedTasks = useMemo(() => {
         const getStatusOrder = (status) => {
