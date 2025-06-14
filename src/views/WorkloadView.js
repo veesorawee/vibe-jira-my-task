@@ -1,4 +1,3 @@
-// src/views/WorkloadView.js
 import React, { useMemo, useState } from 'react';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { parseDate } from '../utils/helpers';
@@ -47,6 +46,37 @@ const StatusColumn = ({ title, tasks = [], onTaskClick }) => {
 const WorkloadView = ({ tasks }) => {
     const { jiraAPI, isConnected, loadJiraData } = useJira();
     const [selectedTask, setSelectedTask] = useState(null);
+    const [workloadView, setWorkloadView] = useState('assignee'); // 'assignee', 'department', 'biCategory'
+
+    // Memo to prepare data for grouping and coloring
+    const { uniqueAssignees, allDepartments, allBiCategories, assigneeColors, departmentColors, biCategoryColors } = useMemo(() => {
+        const uniqueAssignees = [...new Set(tasks.map(task => task.assignee).filter(Boolean))].sort();
+        const allDepartments = [...new Set(tasks.map(t => t.department).filter(Boolean))].sort();
+        const allBiCategories = [...new Set(tasks.map(t => t.biCategory).filter(Boolean))].sort();
+        
+        const colorGen = (keys, colors) => {
+            const colorMap = {};
+            keys.forEach((key, index) => { colorMap[key] = colors[index % colors.length]; });
+            colorMap['N/A'] = '#9ca3af';
+            colorMap['Unassigned'] = '#9ca3af';
+            return colorMap;
+        };
+
+        const baseColors1 = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#6366f1'];
+        const baseColors2 = ['#a855f7', '#14b8a6', '#6366f1', '#eab308', '#0891b2', '#db2777', '#65a30d', '#f472b6'];
+        const baseColors3 = [
+            '#667eea', '#764ba2', '#43e97b', '#ff9a9e', 
+            '#fbc2eb', '#fdbb2d', '#ff6b6b', '#3f5efb'
+        ];
+        return {
+            uniqueAssignees,
+            allDepartments,
+            allBiCategories,
+            assigneeColors: colorGen(uniqueAssignees, baseColors1),
+            departmentColors: colorGen(allDepartments, baseColors2),
+            biCategoryColors: colorGen(allBiCategories, baseColors3),
+        };
+    }, [tasks]);
 
     const dailyWorkloadData = useMemo(() => {
         const dataToProcess = tasks;
@@ -54,16 +84,29 @@ const WorkloadView = ({ tasks }) => {
         today.setHours(0, 0, 0, 0);
         const todayStr = today.toISOString().split('T')[0];
 
-        if (dataToProcess.length === 0) return { chartData: [], todayFormatted: todayStr };
+        if (dataToProcess.length === 0) return { chartData: [], todayFormatted: todayStr, activeChartKeys: [], chartColors: {} };
         
         const allStartDates = dataToProcess.map(task => parseDate(task.startDate)).filter(Boolean);
-        if(allStartDates.length === 0) return { chartData: [], todayFormatted: todayStr };
+        if(allStartDates.length === 0) return { chartData: [], todayFormatted: todayStr, activeChartKeys: [], chartColors: {} };
 
         const minDate = new Date(Math.min.apply(null, allStartDates));
         const chartStartDate = new Date(minDate);
         const chartEndDate = new Date();
         
         const data = [];
+        let keys, colors;
+
+        // Determine which group to use based on the view state
+        if (workloadView === 'assignee') {
+            keys = uniqueAssignees;
+            colors = assigneeColors;
+        } else if (workloadView === 'department') {
+            keys = allDepartments;
+            colors = departmentColors;
+        } else { // biCategory
+            keys = allBiCategories;
+            colors = biCategoryColors;
+        }
 
         for (let d = new Date(chartStartDate); d <= chartEndDate; d.setDate(d.getDate() + 1)) {
             const currentDateIter = new Date(d);
@@ -74,23 +117,30 @@ const WorkloadView = ({ tasks }) => {
                 displayDate: currentDateIter.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) 
             };
             
-            dayData['Open Tasks'] = dataToProcess.filter(task => {
-                const taskStartDate = parseDate(task.startDate);
-                if (!taskStartDate || currentDateIter < taskStartDate) return false;
-                
-                const isResolved = task.status.toLowerCase().includes('done') || task.status.toLowerCase().includes('cancelled');
-                if (isResolved) {
-                    const taskResolutionDate = parseDate(task.resolutiondate);
-                    return taskResolutionDate && currentDateIter < taskResolutionDate;
-                }
-                return true;
-            }).length;
+            // Calculate workload for each key in the selected group
+            keys.forEach(key => {
+                dayData[key] = dataToProcess.filter(task => {
+                    const groupKey = workloadView === 'assignee' ? task.assignee : (workloadView === 'department' ? task.department : task.biCategory);
+                    if (groupKey !== key) return false;
+
+                    const taskStartDate = parseDate(task.startDate);
+                    if (!taskStartDate || currentDateIter < taskStartDate) return false;
+                    
+                    const isResolved = task.status.toLowerCase().includes('done') || task.status.toLowerCase().includes('cancelled');
+                    if (isResolved) {
+                        const taskResolutionDate = parseDate(task.resolutiondate);
+                        return taskResolutionDate && currentDateIter < taskResolutionDate;
+                    }
+                    return true;
+                }).length;
+            });
             
             data.push(dayData);
         }
         
-        return { chartData: data, todayFormatted: todayStr };
-    }, [tasks]);
+        const activeKeys = keys.filter(key => data.some(dayData => dayData[key] > 0));
+        return { chartData: data, activeChartKeys: activeKeys, chartColors: colors, todayFormatted: todayStr };
+    }, [tasks, workloadView, uniqueAssignees, allDepartments, allBiCategories, assigneeColors, departmentColors, biCategoryColors]);
 
     const groupedByStatus = useMemo(() => {
         const grouped = tasks.reduce((acc, task) => {
@@ -131,7 +181,14 @@ const WorkloadView = ({ tasks }) => {
         <div className="h-full overflow-y-auto">
             <div className="space-y-6">
                 <div className="bg-white rounded-lg shadow-md p-6">
-                    <h3 className="text-lg font-bold mb-4">Daily Workload</h3>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold">Daily Workload</h3>
+                        <div className="bg-gray-100 p-1 rounded-lg shadow-inner inline-flex items-center">
+                            <button onClick={() => setWorkloadView('assignee')} className={`px-3 py-1 rounded-md transition-colors text-sm ${workloadView === 'assignee' ? 'bg-white text-indigo-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>Total</button>
+                            <button onClick={() => setWorkloadView('department')} className={`px-3 py-1 rounded-md transition-colors text-sm ${workloadView === 'department' ? 'bg-white text-indigo-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>By Department</button>
+                            <button onClick={() => setWorkloadView('biCategory')} className={`px-3 py-1 rounded-md transition-colors text-sm ${workloadView === 'biCategory' ? 'bg-white text-indigo-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}>By BI Category</button>
+                        </div>
+                    </div>
                     <ResponsiveContainer width="100%" height={300}>
                         <LineChart data={dailyWorkloadData.chartData}>
                             <CartesianGrid strokeDasharray="3 3" stroke={'#e5e7eb'} />
@@ -139,7 +196,9 @@ const WorkloadView = ({ tasks }) => {
                             <YAxis allowDecimals={false} tick={{ fill: '#6b7280' }}/>
                             <Tooltip contentStyle={{ backgroundColor: 'white', borderColor: '#e5e7eb' }} labelStyle={{ color: '#111827' }} />
                             <Legend />
-                            <Line type="monotone" dataKey="Open Tasks" stroke="#4f46e5" strokeWidth={2} dot={{r: 2}} activeDot={{r: 6}} />
+                            {dailyWorkloadData.activeChartKeys.map(key => (
+                                <Line key={key} type="monotone" dataKey={key} name={key} stroke={dailyWorkloadData.chartColors[key] || '#9ca3af'} strokeWidth={2} dot={{r: 2}} activeDot={{r: 6}} />
+                            ))}
                             <ReferenceLine x={dailyWorkloadData.todayFormatted} stroke="red" strokeWidth={2} label={{ value: "Today", position: "insideTopRight", fill: "red", fontSize: 12 }} />
                         </LineChart>
                     </ResponsiveContainer>

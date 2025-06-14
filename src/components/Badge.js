@@ -1,9 +1,51 @@
 import React from 'react';
-import { ChevronsUp, ChevronUp, Minus, ChevronDown, Flame, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ChevronsUp, ChevronUp, Minus, ChevronDown, Flame, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { departmentImageConfig } from '../config/departmentConfig';
 import { parseDate, getStatusColor } from '../utils/helpers';
+
+// A simple hash function to generate a consistent color from a string
+const stringToColor = (str) => {
+    let hash = 0;
+    if (str.length === 0) return '#cccccc';
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    let color = '#';
+    for (let i = 0; i < 3; i++) {
+        const value = (hash >> (i * 8)) & 0xFF;
+        color += ('00' + value.toString(16)).substr(-2);
+    }
+    return color;
+};
 
 const Badge = ({ type, task }) => {
     const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border";
+
+    if (type === 'department') {
+        const departmentName = task.department || 'N/A';
+        const imageUrl = departmentImageConfig[departmentName];
+
+        if (imageUrl) {
+            return (
+                <img 
+                    src={imageUrl} 
+                    alt={departmentName} 
+                    className="w-5 h-5 rounded-full object-cover" 
+                    title={departmentName} 
+                />
+            );
+        }
+        
+        // Fallback to a colored dot if no image is configured
+        return (
+            <span 
+                className="w-5 h-5 rounded-full inline-block" // Removed border
+                /*style={{ backgroundColor: stringToColor(departmentName) }}
+                title={departmentName}*/
+            ></span>
+        );
+    }
 
     if (type === 'priority') {
         const priority = task.priority || 'Low';
@@ -33,26 +75,21 @@ const Badge = ({ type, task }) => {
         return <span title={priority} className={`${baseClasses} ${color}`}>{icon}{text}</span>;
     }
 
-    // EDITED: Updated timeliness badge logic to 3 states
     if (type === 'timeliness') {
         const dueDate = parseDate(task.dueDate);
 
-        // Case 1: No due date is set for the task.
         if (!dueDate) {
             return <span title="No Due Date" className={`${baseClasses} bg-gray-200 text-gray-800 border-gray-300`}><AlertTriangle size={14} /> No Due</span>;
         }
 
-        // Case 2: Due date exists, check if it's overdue.
         const resolutionDate = parseDate(task.resolutiondate);
         let isOverdue;
 
         if (resolutionDate) {
-            // If resolved, compare resolution date to due date.
             isOverdue = resolutionDate > dueDate;
         } else {
-            // If not resolved, compare today's date to due date.
             const today = new Date();
-            today.setHours(0, 0, 0, 0); // Compare date part only
+            today.setHours(0, 0, 0, 0); 
             isOverdue = today > dueDate;
         }
         

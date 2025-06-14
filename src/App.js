@@ -33,6 +33,8 @@ function App() {
     const [searchTerm, setSearchTerm] = useState('');
     const [filters, setFilters] = useState({ status: [], priority: [] });
     const [updatingTaskId, setUpdatingTaskId] = useState(null);
+    const [projectUsers, setProjectUsers] = useState([]);
+    const [isCreatingTask, setIsCreatingTask] = useState(false);
 
     const memoizedLoadJiraData = useCallback(loadJiraData, [jiraConfig.projectKey]);
     useEffect(() => {
@@ -40,30 +42,74 @@ function App() {
             memoizedLoadJiraData({ isBackground: false });
         }
     }, [jiraConfig.projectKey, memoizedLoadJiraData]);
+    
+    useEffect(() => {
+        if (isConnected && jiraConfig.projectKey) {
+            const fetchUsers = async () => {
+                try {
+                    const users = await jiraAPI.getAssignableUsers(jiraConfig.projectKey);
+                    users.sort((a, b) => a.displayName.localeCompare(b.displayName));
+                    setProjectUsers(users);
+                } catch (e) {
+                    console.error("Failed to fetch assignable users:", e);
+                }
+            };
+            fetchUsers();
+        }
+    }, [isConnected, jiraConfig.projectKey, jiraAPI]);
 
     const handleCreateTask = async (issueData) => {
-        if (!isConnected) throw new Error("Disconnected");
+        if (!isConnected) {
+            alert("Cannot create task in disconnected mode.");
+            throw new Error("Disconnected");
+        }
+        setIsCreatingTask(true);
         try {
-            await jiraAPI.createIssue(issueData);
-            await loadJiraData({ isBackground: true });
+            const createdTaskResponse = await jiraAPI.createIssue(issueData);
+            const createdIssueKey = createdTaskResponse.key;
+            const originalDescription = issueData.fields.description;
+            
+            await loadJiraData({ isBackground: true }); 
             setIsCreateModalOpen(false);
+
+            if (originalDescription?.content?.[0]?.content?.[0]?.text) {
+                setTimeout(async () => {
+                    try {
+                        await jiraAPI.updateIssue(createdIssueKey, { fields: { description: originalDescription } });
+                        await loadJiraData({ isBackground: true });
+                    } catch (updateError) {
+                        console.error("Failed to update description after delay:", updateError);
+                    } finally {
+                        setIsCreatingTask(false);
+                    }
+                }, 10000);
+            } else {
+                setIsCreatingTask(false);
+            }
         } catch (err) {
             console.error("Failed to create task:", err);
+            setIsCreatingTask(false);
             throw err;
         }
     };
-
+    
     const handleUpdateTask = async (taskId, updates) => {
         if (!isConnected || updatingTaskId) return;
         setUpdatingTaskId(taskId);
         try {
             const { statusId, comment, priority } = updates;
             const fieldsPayload = {};
-            if (priority) fieldsPayload.priority = { name: priority };
+            if (priority) { fieldsPayload.priority = { name: priority }; }
             
-            if (Object.keys(fieldsPayload).length > 0) await jiraAPI.updateIssue(taskId, { fields: fieldsPayload });
-            if (statusId) await jiraAPI.transitionIssue(taskId, statusId);
-            if (comment) await jiraAPI.addComment(taskId, comment);
+            if (Object.keys(fieldsPayload).length > 0) {
+                await jiraAPI.updateIssue(taskId, { fields: fieldsPayload });
+            }
+            if (statusId) {
+                await jiraAPI.transitionIssue(taskId, statusId);
+            }
+            if (comment) {
+                await jiraAPI.addComment(taskId, comment);
+            }
             
             await loadJiraData({ isBackground: true });
         } catch (err) {
@@ -113,6 +159,25 @@ function App() {
         return tasksToFilter;
     }, [allTasks, searchTerm, filters]);
 
+    const { allDepartments } = useMemo(() => {
+        const departments = new Set();
+        allTasks.forEach(task => {
+            if(task.department && task.department !== 'N/A') departments.add(task.department);
+        });
+        return { 
+            allDepartments: [...departments].sort()
+        };
+    }, [allTasks]);
+    
+    const staticBiCategoriesForCreate = [
+        'Product Spec. Tracking [D]',
+        'Product Analysis [D]',
+        'Product Report/Ad-Hoc [D]',
+        'Product Investigation [D]',
+        'Initiation/Idea [D]',
+        'Others [CO]'
+    ];
+
     return (
         <div className="flex h-screen bg-gray-100 text-gray-800">
             <Sidebar
@@ -130,12 +195,11 @@ function App() {
                     isConnected={isConnected}
                     lastRefreshTime={lastRefreshTime}
                 />
-                {/* --- LAYOUT FIX: overflow-hidden สร้างขอบเขตความสูงที่ชัดเจนให้ child (View) --- */}
                 <main className="flex-1 p-6 overflow-hidden">
-                    {loading && <div className="w-full h-full flex items-center justify-center"><p className="font-semibold">Loading tasks...</p></div>}
+                    {loading && !isCreatingTask && <div className="w-full h-full flex items-center justify-center"><p className="font-semibold">Loading tasks...</p></div>}
                     {error && <div className="m-4 p-4 bg-red-100 text-red-700 rounded-lg">⚠️ Error: {error}</div>}
                     
-                    {!loading && !error && (
+                    {(!loading || isCreatingTask) && !error && (
                         <>
                             {view === 'inbox' && 
                                 <InboxView 
@@ -146,6 +210,7 @@ function App() {
                                     updatingTaskId={updatingTaskId}
                                     jiraAPI={jiraAPI}
                                     isConnected={isConnected}
+                                    isCreatingTask={isCreatingTask}
                                 />
                             }
                             {view === 'gantt' && <GanttView tasks={filteredTasks} />}
@@ -156,7 +221,16 @@ function App() {
             </div>
             
             <ConfigModal isOpen={showConfig} onClose={() => setShowConfig(false)} jiraConfig={jiraConfig} saveJiraConfig={saveJiraConfig} isConnected={isConnected} />
-            <CreateTaskModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSubmit={handleCreateTask} projectKey={jiraConfig.projectKey} currentUser={currentUser} />
+            <CreateTaskModal 
+                isOpen={isCreateModalOpen} 
+                onClose={() => setIsCreateModalOpen(false)} 
+                onSubmit={handleCreateTask}
+                projectKey={jiraConfig.projectKey}
+                currentUser={currentUser} 
+                assignableUsers={projectUsers}
+                departmentOptions={allDepartments}
+                biCategoryOptions={staticBiCategoriesForCreate}
+            />
             <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} tasks={allTasks} filters={filters} setFilters={setFilters} />
         </div>
     );

@@ -1,7 +1,5 @@
 // src/utils/helpers.js
 
-// --- FIX: This is the correct version of the function ---
-// It formats time to show relative time for today, "Yesterday", or date for older
 export const formatRelativeTime = (dateString) => {
     if (!dateString) return '';
     
@@ -14,31 +12,25 @@ export const formatRelativeTime = (dateString) => {
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);
         
-        // Check if it's today
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
         
         if (dateDay.getTime() === today.getTime()) {
-            // Less than 1 minute
             if (diffMins < 1) {
                 return 'Just now';
             }
-            // Less than 60 minutes
             if (diffMins < 60) {
                 return `${diffMins}m ago`;
             }
-            // Less than 24 hours (but still today)
             return `${diffHours}h ago`;
         }
 
-        // Check if it's yesterday
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
         if (dateDay.getTime() === yesterday.getTime()) {
             return 'Yesterday';
         }
 
-        // For older dates, show the date
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     } catch (error) {
         console.error('Error formatting date:', error);
@@ -117,7 +109,7 @@ export const adfToHtml = (adf) => {
                                 const href = escapeHtml(mark.attrs.href);
                                 if (href.includes('lmwn.slack.com')) {
                                     if (!slackLink) slackLink = href;
-                                    return ''; // Don't render slack links inline
+                                    return '';
                                 }
                                 if (href.includes('figma.com')) {
                                     const match = href.match(/\/(?:design|file)\/[^/]+\/([^/?]+)/);
@@ -126,7 +118,7 @@ export const adfToHtml = (adf) => {
                                         linkText = decodeURIComponent(match[1]).replace(/[-_]/g, ' ');
                                     }
                                     figmaLinks.push({ href, text: linkText });
-                                    return ''; // Don't render figma links inline
+                                    return '';
                                 }
                                 if (href.includes('lmwn-redash.linecorp.com/queries/')) {
                                     const match = href.match(/queries\/(\d+)/);
@@ -151,4 +143,17 @@ export const adfToHtml = (adf) => {
 export const formatDate = (date) => {
     if (!date) return null;
     return date instanceof Date ? date.toISOString().split('T')[0] : new Date(date).toISOString().split('T')[0];
+};
+
+/**
+ * Converts a hex color to an rgba string.
+ * @param {string} hex The hex color code (e.g., "#RRGGBB").
+ * @param {number} alpha The alpha transparency (0-1).
+ * @returns {string} The rgba color string.
+ */
+export const hexToRgba = (hex, alpha = 1) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result
+        ? `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}, ${alpha})`
+        : 'rgba(128, 128, 128, 1)'; // Default to gray if hex is invalid
 };
