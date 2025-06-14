@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Search, SlidersHorizontal, RefreshCw } from 'lucide-react';
+import { Search, SlidersHorizontal, RefreshCw, Radio } from 'lucide-react';
 import FilterPopover from './FilterPopover';
 import { useOutsideClick } from '../hooks/useOutsideClick';
 
@@ -12,18 +12,37 @@ const Header = ({
     setDateRange,
     filterOptions,
     isConnected,
+    isOfficeHours,
     lastRefreshTime,
-    onRefresh // New prop for refresh function
+    onRefresh
 }) => {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isStatusOpen, setIsStatusOpen] = useState(false);
     const headerRef = useRef(null);
 
-    // Use a custom hook to close the popovers when clicking outside
     useOutsideClick(headerRef, () => {
         if (isFilterOpen) setIsFilterOpen(false);
         if (isStatusOpen) setIsStatusOpen(false);
     });
+
+    let statusText = 'Disconnected';
+    let statusColorClass = 'bg-red-500';
+    let statusTextColorClass = 'text-red-600';
+    let canOpenStatus = false;
+
+    if (isConnected) {
+        if (isOfficeHours) {
+            statusText = 'Connected';
+            statusColorClass = 'bg-green-500';
+            statusTextColorClass = 'text-green-600';
+            canOpenStatus = true;
+        } else {
+            statusText = 'Offline';
+            statusColorClass = 'bg-gray-400';
+            statusTextColorClass = 'text-gray-500';
+            canOpenStatus = false;
+        }
+    }
 
     return (
         <header className="flex-shrink-0 bg-white border-b border-gray-200 p-4" ref={headerRef}>
@@ -66,15 +85,22 @@ const Header = ({
                 {/* Connection Status & Refresh Section */}
                 <div className="relative ml-4">
                      <div 
-                        className={`flex items-center gap-2 text-sm cursor-pointer ${isConnected ? 'text-green-600' : 'text-red-600'}`}
-                        onClick={() => isConnected && setIsStatusOpen(!isStatusOpen)}
+                        className={`flex items-center gap-2 text-sm ${canOpenStatus ? 'cursor-pointer' : 'cursor-default'} ${statusTextColorClass}`}
+                        onClick={() => canOpenStatus && setIsStatusOpen(!isStatusOpen)}
                     >
-                        <span className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-                        {isConnected ? 'Connected' : 'Disconnected'}
+                        <span className={`w-2.5 h-2.5 rounded-full ${statusColorClass}`}></span>
+                        {statusText}
+                        
+                        {isConnected && isOfficeHours && (
+                            <span className="ml-1 inline-flex items-center text-xs font-bold text-white bg-green-500 rounded-full px-2 py-0.5">
+                                <Radio size={12} className="mr-1 animate-pulse" />
+                                LIVE
+                            </span>
+                        )}
                     </div>
-
-                    {isConnected && isStatusOpen && (
-                        <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-10">
+                    
+                    {canOpenStatus && isStatusOpen && (
+                        <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-40">
                             <div className="p-3 border-b">
                                 <p className="text-xs text-gray-500">Last refresh:</p>
                                 <p className="text-sm font-medium">{lastRefreshTime ? lastRefreshTime.toLocaleTimeString() : 'N/A'}</p>
@@ -97,4 +123,3 @@ const Header = ({
 };
 
 export default Header;
-

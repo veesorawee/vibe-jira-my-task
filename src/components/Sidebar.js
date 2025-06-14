@@ -1,10 +1,11 @@
 // src/components/Sidebar.js
 import React from 'react';
-import { PlusCircle, Inbox, GanttChartSquare, BarChart3, Settings } from 'lucide-react';
+import { PlusCircle, Inbox, GanttChartSquare, BarChart3, Settings ,LayoutGrid} from 'lucide-react';
 
 const Sidebar = ({ view, setView, activeTaskCount, onCreateClick, onConfigClick }) => {
     const navItems = [
         { key: 'inbox', label: 'Inbox', icon: Inbox, count: activeTaskCount },
+        { key: 'kanban', label: 'Kanban', icon: LayoutGrid },
         { key: 'gantt', label: 'Gantt', icon: GanttChartSquare },
         { key: 'workload', label: 'Workload', icon: BarChart3 },
     ];

@@ -8,25 +8,32 @@ import Header from './components/Header';
 import GanttView from './views/GanttView';
 import InboxView from './views/InboxView';
 import WorkloadView from './views/WorkloadView';
+import KanbanView from './views/KanbanView';
 import ConfigModal from './components/ConfigModal';
 import CreateTaskModal from './components/CreateTaskModal';
+import ErrorToast from './components/ErrorToast';
 
 function App() {
     const { 
         allTasks, 
         loading, 
         error, 
+        clearError, 
         isConnected, 
+        isOfficeHours,
         lastRefreshTime, 
         activeTaskCount,
         jiraConfig, 
         saveJiraConfig, 
         loadJiraData, 
         jiraAPI,
-        currentUser 
+        currentUser, 
+        updateTask, 
+        updateTaskStatus, 
+        updatingTaskId 
     } = useJira();
     
-    const [view, setView] = useState('inbox');
+    const [view, setView] = useState('kanban');
     const [showConfig, setShowConfig] = useState(false);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -38,12 +45,11 @@ function App() {
         biCategory: [] 
     });
     const [dateRange, setDateRange] = useState({ start: null, end: null });
-    
-    const [updatingTaskId, setUpdatingTaskId] = useState(null);
     const [projectUsers, setProjectUsers] = useState([]);
     const [isCreatingTask, setIsCreatingTask] = useState(false);
 
     const memoizedLoadJiraData = useCallback(loadJiraData, [jiraConfig.projectKey]);
+
     useEffect(() => {
         if (jiraConfig.projectKey) {
             memoizedLoadJiraData({ isBackground: false });
@@ -57,101 +63,43 @@ function App() {
                     const users = await jiraAPI.getAssignableUsers(jiraConfig.projectKey);
                     users.sort((a, b) => a.displayName.localeCompare(b.displayName));
                     setProjectUsers(users);
-                } catch (e) {
-                    console.error("Failed to fetch assignable users:", e);
-                }
+                } catch (e) { console.error("Failed to fetch assignable users:", e); }
             };
             fetchUsers();
         }
     }, [isConnected, jiraConfig.projectKey, jiraAPI]);
 
     const handleCreateTask = async (issueData) => {
-        if (!isConnected) {
-            alert("Cannot create task in disconnected mode.");
-            throw new Error("Disconnected");
-        }
         setIsCreatingTask(true);
         try {
-            const createdTaskResponse = await jiraAPI.createIssue(issueData);
-            const createdIssueKey = createdTaskResponse.key;
-            const originalDescription = issueData.fields.description;
-            
-            await loadJiraData({ isBackground: true }); 
+            await jiraAPI.createIssue(issueData);
+            await loadJiraData({ isBackground: true });
             setIsCreateModalOpen(false);
-
-            if (originalDescription?.content?.[0]?.content?.[0]?.text) {
-                setTimeout(async () => {
-                    try {
-                        await jiraAPI.updateIssue(createdIssueKey, { fields: { description: originalDescription } });
-                        await loadJiraData({ isBackground: true });
-                    } catch (updateError) {
-                        console.error("Failed to update description after delay:", updateError);
-                    } finally {
-                        setIsCreatingTask(false);
-                    }
-                }, 10000);
-            } else {
-                setIsCreatingTask(false);
-            }
         } catch (err) {
             console.error("Failed to create task:", err);
-            setIsCreatingTask(false);
             throw err;
+        } finally {
+            setIsCreatingTask(false);
         }
     };
     
-    const handleUpdateTask = async (taskId, updates) => {
-        if (!isConnected || updatingTaskId) return;
-        setUpdatingTaskId(taskId);
-        try {
-            const { statusId, comment, priority } = updates;
-            const fieldsPayload = {};
-            if (priority) { fieldsPayload.priority = { name: priority }; }
-            
-            if (Object.keys(fieldsPayload).length > 0) {
-                await jiraAPI.updateIssue(taskId, { fields: fieldsPayload });
-            }
-            if (statusId) {
-                await jiraAPI.transitionIssue(taskId, statusId);
-            }
-            if (comment) {
-                await jiraAPI.addComment(taskId, comment);
-            }
-            
-            await loadJiraData({ isBackground: true });
-        } catch (err) {
-            console.error("Failed to update task:", err);
-            throw err;
-        } finally {
-            setUpdatingTaskId(null);
-        }
-    };
-
     const handleQuickTransition = async (taskId, targetStatus) => {
         if (!isConnected || updatingTaskId) return;
-        setUpdatingTaskId(taskId);
         try {
             const { transitions } = await jiraAPI.getTransitions(taskId);
-            const targetTransition = transitions.find(t => 
-                t.name.toLowerCase().includes(targetStatus.toLowerCase())
-            );
-            if (targetTransition) {
-                await jiraAPI.transitionIssue(taskId, targetTransition.id);
-                await loadJiraData({ isBackground: true });
+            const target = transitions.find(t => t.name.toLowerCase().includes(targetStatus));
+            if (target) {
+                await updateTask(taskId, { statusId: target.id });
             } else {
-                alert(`Transition to "${targetStatus}" not available for this task.`);
+                alert(`Transition to "${targetStatus}" not available.`);
             }
-        } catch (err) {
-            console.error(`Failed to transition to ${targetStatus}:`, err);
-            alert(`Error: ${err.message}`);
-        } finally {
-            setUpdatingTaskId(null);
+        } catch (e) {
+            console.error(e);
         }
     };
 
     const filteredTasks = useMemo(() => {
         let tasksToFilter = [...allTasks];
-        
         if (dateRange.start) {
             const start = new Date(dateRange.start);
             start.setHours(0, 0, 0, 0);
@@ -168,14 +116,12 @@ function App() {
                 return taskDate && taskDate <= end;
             });
         }
-
         if (searchTerm) {
             tasksToFilter = tasksToFilter.filter(task => 
                 task.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                 task.id.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
-
         if (filters.status.length > 0) {
             tasksToFilter = tasksToFilter.filter(task => filters.status.includes(task.status));
         }
@@ -188,7 +134,6 @@ function App() {
         if (filters.biCategory.length > 0) {
             tasksToFilter = tasksToFilter.filter(task => filters.biCategory.includes(task.biCategory));
         }
-
         return tasksToFilter;
     }, [allTasks, searchTerm, filters, dateRange]);
 
@@ -210,11 +155,8 @@ function App() {
     }, [allTasks]);
     
     const staticBiCategoriesForCreate = [
-        'Product Spec. Tracking [D]',
-        'Product Analysis [D]',
-        'Product Report/Ad-Hoc [D]',
-        'Initiation/Idea [D]',
-        'Others [CO]'
+        'Product Spec. Tracking [D]', 'Product Analysis [D]',
+        'Product Report/Ad-Hoc [D]', 'Initiation/Idea [D]', 'Others [CO]'
     ];
 
     return (
@@ -228,53 +170,31 @@ function App() {
             />
             <div className="flex-1 flex flex-col min-w-0">
                 <Header
-                    searchTerm={searchTerm}
-                    setSearchTerm={setSearchTerm}
-                    filters={filters}
-                    setFilters={setFilters}
-                    dateRange={dateRange}
-                    setDateRange={setDateRange}
-                    filterOptions={filterOptions}
-                    isConnected={isConnected}
-                    lastRefreshTime={lastRefreshTime}
-                    onRefresh={() => loadJiraData(false)} // Pass refresh function
+                    searchTerm={searchTerm} setSearchTerm={setSearchTerm}
+                    filters={filters} setFilters={setFilters}
+                    dateRange={dateRange} setDateRange={setDateRange}
+                    filterOptions={filterOptions} isConnected={isConnected}
+                    isOfficeHours={isOfficeHours} lastRefreshTime={lastRefreshTime}
+                    onRefresh={() => loadJiraData(false)}
                 />
-                <main className="flex-1 p-6 overflow-hidden">
-                    {loading && !isCreatingTask && <div className="w-full h-full flex items-center justify-center"><p className="font-semibold">Loading tasks...</p></div>}
-                    {error && <div className="m-4 p-4 bg-red-100 text-red-700 rounded-lg">⚠️ Error: {error}</div>}
+                <main className="flex-1 overflow-y-auto">
+                    {loading && <div className="w-full h-full flex items-center justify-center"><p className="font-semibold">Loading tasks...</p></div>}
                     
-                    {(!loading || isCreatingTask) && !error && (
-                        <>
-                            {view === 'inbox' && 
-                                <InboxView 
-                                    tasks={filteredTasks}
-                                    activeTaskCount={activeTaskCount}
-                                    onUpdateTask={handleUpdateTask}
-                                    onQuickTransition={handleQuickTransition}
-                                    updatingTaskId={updatingTaskId}
-                                    jiraAPI={jiraAPI}
-                                    isConnected={isConnected}
-                                    isCreatingTask={isCreatingTask}
-                                />
-                            }
-                            {view === 'gantt' && <GanttView tasks={filteredTasks} />}
-                            {view === 'workload' && <WorkloadView tasks={allTasks} />}
-                        </>
+                    {!loading && (
+                        <div className="h-full">
+                            {view === 'inbox' && <div className="p-1 h-full"><InboxView tasks={filteredTasks} activeTaskCount={activeTaskCount} onUpdateTask={updateTask} onQuickTransition={handleQuickTransition} updatingTaskId={updatingTaskId} jiraAPI={jiraAPI} isConnected={isConnected} isCreatingTask={isCreatingTask} /></div>}
+                            {view === 'kanban' && <KanbanView tasks={allTasks} onUpdateStatus={updateTaskStatus} updatingTaskId={updatingTaskId} isCreatingTask={isCreatingTask} />}
+                            {view === 'gantt' && <div className="p-1 h-full"><GanttView tasks={filteredTasks} /></div>}
+                            {view === 'workload' && <div className="p-1 h-full"><WorkloadView tasks={allTasks} /></div>}
+                        </div>
                     )}
                 </main>
             </div>
             
             <ConfigModal isOpen={showConfig} onClose={() => setShowConfig(false)} jiraConfig={jiraConfig} saveJiraConfig={saveJiraConfig} isConnected={isConnected} />
-            <CreateTaskModal 
-                isOpen={isCreateModalOpen} 
-                onClose={() => setIsCreateModalOpen(false)} 
-                onSubmit={handleCreateTask}
-                projectKey={jiraConfig.projectKey}
-                currentUser={currentUser} 
-                assignableUsers={projectUsers}
-                departmentOptions={filterOptions.allDepartments}
-                biCategoryOptions={staticBiCategoriesForCreate}
-            />
+            <CreateTaskModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSubmit={handleCreateTask} projectKey={jiraConfig.projectKey} currentUser={currentUser} assignableUsers={projectUsers} departmentOptions={filterOptions.allDepartments} biCategoryOptions={staticBiCategoriesForCreate} />
+            
+            {error && <ErrorToast message={error} onClose={clearError} />}
         </div>
     );
 }

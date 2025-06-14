@@ -32,7 +32,8 @@ const TaskListItem = ({ task, onSelect, isSelected, onQuickTransition, updatingT
     return (
         <div
             onClick={() => !isUpdating && onSelect(task)}
-            className={`group relative flex flex-col gap-2 p-4 border-b border-gray-200 transition-colors duration-150 ${isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'} ${isClosed ? 'bg-slate-100' : ''} ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            // === ลด padding และ gap เพื่อความกระชับ ===
+            className={`group relative flex flex-col gap-1.5 p-3 transition-colors duration-150 ${isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'} ${isClosed ? 'bg-slate-100' : ''} ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         >
             {isUpdating && (
                  <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center z-20">
@@ -53,7 +54,8 @@ const TaskListItem = ({ task, onSelect, isSelected, onQuickTransition, updatingT
             <p className={`text-sm ${isClosed ? 'text-gray-500' : 'text-gray-600'}`}>{departmentAndLabel.trim()}</p>
 
             {!isClosed && (
-                <div className="h-7 mt-1 flex items-center gap-2">
+                // === ปรับแก้ spacing ของส่วน badge ===
+                <div className="h-auto mt-1 flex items-center gap-2">
                     <Badge type="priority" task={task} />
                     <Badge type="timeliness" task={task} />
                     <Badge type="status" task={task} />
@@ -77,6 +79,7 @@ const TaskListItem = ({ task, onSelect, isSelected, onQuickTransition, updatingT
     );
 };
 
+// ... (ส่วนที่เหลือของไฟล์เหมือนเดิม)
 const InboxView = ({ tasks, activeTaskCount, onUpdateTask, onQuickTransition, updatingTaskId, jiraAPI, isConnected, isCreatingTask }) => {
     const [selectedTask, setSelectedTask] = useState(null);
     const [sortMode, setSortMode] = useState('createTime'); // Default sort mode
