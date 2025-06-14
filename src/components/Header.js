@@ -1,32 +1,95 @@
-// src/components/Header.js
-import React from 'react';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Search, SlidersHorizontal, RefreshCw } from 'lucide-react';
+import FilterPopover from './FilterPopover';
+import { useOutsideClick } from '../hooks/useOutsideClick';
 
-const Header = ({ searchTerm, setSearchTerm, onFilterClick, isConnected, lastRefreshTime }) => {
+const Header = ({
+    searchTerm,
+    setSearchTerm,
+    filters,
+    setFilters,
+    dateRange,
+    setDateRange,
+    filterOptions,
+    isConnected,
+    lastRefreshTime,
+    onRefresh // New prop for refresh function
+}) => {
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [isStatusOpen, setIsStatusOpen] = useState(false);
+    const headerRef = useRef(null);
+
+    // Use a custom hook to close the popovers when clicking outside
+    useOutsideClick(headerRef, () => {
+        if (isFilterOpen) setIsFilterOpen(false);
+        if (isStatusOpen) setIsStatusOpen(false);
+    });
+
     return (
-        <header className="flex justify-between items-center p-4 bg-white border-b">
-            <div className="flex-1 max-w-lg">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                        type="text"
-                        placeholder="Search by ID or title..."
-                        className="pl-10 w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                     <button onClick={onFilterClick} className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md">
-                        <SlidersHorizontal size={20} />
-                    </button>
+        <header className="flex-shrink-0 bg-white border-b border-gray-200 p-4" ref={headerRef}>
+            <div className="flex items-center justify-between">
+                {/* Search Bar & Filter Section */}
+                <div className="relative flex-1 max-w-xl">
+                    <div className="relative flex items-center border border-gray-300 rounded-lg shadow-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Search className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Search by ID or title..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="block w-full pl-10 pr-12 py-2 border-none rounded-lg bg-transparent focus:outline-none focus:ring-0 sm:text-sm"
+                        />
+                        <div className="absolute inset-y-0 right-0 pr-2 flex items-center">
+                             <button
+                                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                                className="p-2 rounded-full text-gray-500 hover:bg-gray-100 focus:outline-none"
+                                title="Show search options"
+                            >
+                                <SlidersHorizontal className="h-5 w-5" />
+                            </button>
+                        </div>
+                    </div>
+                     {isFilterOpen && (
+                        <FilterPopover
+                            filterOptions={filterOptions}
+                            filters={filters}
+                            setFilters={setFilters}
+                            dateRange={dateRange}
+                            setDateRange={setDateRange}
+                            onClose={() => setIsFilterOpen(false)}
+                        />
+                    )}
                 </div>
-            </div>
-            <div className="flex items-center gap-4">
-                <div className="text-right">
-                    <div className={`flex items-center gap-2 text-sm ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-                        <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+
+                {/* Connection Status & Refresh Section */}
+                <div className="relative ml-4">
+                     <div 
+                        className={`flex items-center gap-2 text-sm cursor-pointer ${isConnected ? 'text-green-600' : 'text-red-600'}`}
+                        onClick={() => isConnected && setIsStatusOpen(!isStatusOpen)}
+                    >
+                        <span className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
                         {isConnected ? 'Connected' : 'Disconnected'}
                     </div>
-                    {lastRefreshTime && <p className="text-xs text-gray-500 mt-1">Last refresh: {lastRefreshTime.toLocaleTimeString()}</p>}
+
+                    {isConnected && isStatusOpen && (
+                        <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-10">
+                            <div className="p-3 border-b">
+                                <p className="text-xs text-gray-500">Last refresh:</p>
+                                <p className="text-sm font-medium">{lastRefreshTime ? lastRefreshTime.toLocaleTimeString() : 'N/A'}</p>
+                            </div>
+                            <div className="p-2">
+                                <button 
+                                    onClick={() => { onRefresh(); setIsStatusOpen(false); }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100"
+                                >
+                                    <RefreshCw size={14} />
+                                    Refresh now
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </header>
@@ -34,3 +97,4 @@ const Header = ({ searchTerm, setSearchTerm, onFilterClick, isConnected, lastRef
 };
 
 export default Header;
+

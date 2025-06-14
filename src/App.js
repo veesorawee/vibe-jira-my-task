@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import useJira from './hooks/useJira';
+import { parseDate } from './utils/helpers';
 
 // Import Components & Views
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import FilterModal from './components/FilterModal';
 import GanttView from './views/GanttView';
 import InboxView from './views/InboxView';
 import WorkloadView from './views/WorkloadView';
@@ -29,9 +29,16 @@ function App() {
     const [view, setView] = useState('inbox');
     const [showConfig, setShowConfig] = useState(false);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filters, setFilters] = useState({ status: [], priority: [] });
+    
+    const [filters, setFilters] = useState({ 
+        status: [], 
+        priority: [], 
+        department: [], 
+        biCategory: [] 
+    });
+    const [dateRange, setDateRange] = useState({ start: null, end: null });
+    
     const [updatingTaskId, setUpdatingTaskId] = useState(null);
     const [projectUsers, setProjectUsers] = useState([]);
     const [isCreatingTask, setIsCreatingTask] = useState(false);
@@ -144,28 +151,61 @@ function App() {
 
     const filteredTasks = useMemo(() => {
         let tasksToFilter = [...allTasks];
+        
+        if (dateRange.start) {
+            const start = new Date(dateRange.start);
+            start.setHours(0, 0, 0, 0);
+            tasksToFilter = tasksToFilter.filter(task => {
+                const taskDate = parseDate(task.startTimestamp);
+                return taskDate && taskDate >= start;
+            });
+        }
+        if (dateRange.end) {
+            const end = new Date(dateRange.end);
+            end.setHours(23, 59, 59, 999);
+            tasksToFilter = tasksToFilter.filter(task => {
+                const taskDate = parseDate(task.startTimestamp);
+                return taskDate && taskDate <= end;
+            });
+        }
+
         if (searchTerm) {
             tasksToFilter = tasksToFilter.filter(task => 
                 task.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                 task.id.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
+
         if (filters.status.length > 0) {
             tasksToFilter = tasksToFilter.filter(task => filters.status.includes(task.status));
         }
         if (filters.priority.length > 0) {
             tasksToFilter = tasksToFilter.filter(task => filters.priority.includes(task.priority));
         }
-        return tasksToFilter;
-    }, [allTasks, searchTerm, filters]);
+        if (filters.department.length > 0) {
+            tasksToFilter = tasksToFilter.filter(task => filters.department.includes(task.department));
+        }
+        if (filters.biCategory.length > 0) {
+            tasksToFilter = tasksToFilter.filter(task => filters.biCategory.includes(task.biCategory));
+        }
 
-    const { allDepartments } = useMemo(() => {
+        return tasksToFilter;
+    }, [allTasks, searchTerm, filters, dateRange]);
+
+    const filterOptions = useMemo(() => {
+        const statuses = new Set();
         const departments = new Set();
-        allTasks.forEach(task => {
-            if(task.department && task.department !== 'N/A') departments.add(task.department);
+        const biCategories = new Set();
+        (allTasks || []).forEach(task => {
+            if (task.status) statuses.add(task.status);
+            if (task.department) departments.add(task.department);
+            if (task.biCategory) biCategories.add(task.biCategory);
         });
-        return { 
-            allDepartments: [...departments].sort()
+        return {
+            allStatuses: [...statuses].sort(),
+            allPriorities: ['Highest', 'High', 'Medium', 'Low'],
+            allDepartments: [...departments].sort(),
+            allBiCategories: [...biCategories].sort(),
         };
     }, [allTasks]);
     
@@ -173,7 +213,6 @@ function App() {
         'Product Spec. Tracking [D]',
         'Product Analysis [D]',
         'Product Report/Ad-Hoc [D]',
-        'Product Investigation [D]',
         'Initiation/Idea [D]',
         'Others [CO]'
     ];
@@ -191,9 +230,14 @@ function App() {
                 <Header
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
-                    onFilterClick={() => setIsFilterModalOpen(true)}
+                    filters={filters}
+                    setFilters={setFilters}
+                    dateRange={dateRange}
+                    setDateRange={setDateRange}
+                    filterOptions={filterOptions}
                     isConnected={isConnected}
                     lastRefreshTime={lastRefreshTime}
+                    onRefresh={() => loadJiraData(false)} // Pass refresh function
                 />
                 <main className="flex-1 p-6 overflow-hidden">
                     {loading && !isCreatingTask && <div className="w-full h-full flex items-center justify-center"><p className="font-semibold">Loading tasks...</p></div>}
@@ -228,10 +272,9 @@ function App() {
                 projectKey={jiraConfig.projectKey}
                 currentUser={currentUser} 
                 assignableUsers={projectUsers}
-                departmentOptions={allDepartments}
+                departmentOptions={filterOptions.allDepartments}
                 biCategoryOptions={staticBiCategoriesForCreate}
             />
-            <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} tasks={allTasks} filters={filters} setFilters={setFilters} />
         </div>
     );
 }
