@@ -29,11 +29,33 @@ const TaskListItem = ({ task, onSelect, isSelected, onQuickTransition, updatingT
     const createdDate = task.created || task.createdDate || task.createdAt || task.lastUpdated || new Date().toISOString();
     const timeDisplay = formatRelativeTime(createdDate);
 
+    // Determine background and border styles
+    let bgClass = '';
+    let borderClass = '';
+    
+    if (isSelected) {
+        // Selected state - use stronger color and border
+        if (isClosed) {
+            bgClass = 'bg-indigo-100';
+            borderClass = 'border-l-4 border-indigo-400';
+        } else {
+            bgClass = 'bg-indigo-50';
+            borderClass = 'border-l-4 border-indigo-500';
+        }
+    } else if (isClosed) {
+        // Closed but not selected - gray tone
+        bgClass = 'bg-gray-50 hover:bg-gray-100';
+        borderClass = 'border-l-4 border-transparent hover:border-gray-300';
+    } else {
+        // Normal open tasks - blue tone on hover
+        bgClass = 'hover:bg-blue-50';
+        borderClass = 'border-l-4 border-transparent hover:border-blue-300';
+    }
+
     return (
         <div
             onClick={() => !isUpdating && onSelect(task)}
-            // === ลด padding และ gap เพื่อความกระชับ ===
-            className={`group relative flex flex-col gap-1.5 p-3 transition-colors duration-150 ${isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'} ${isClosed ? 'bg-slate-100' : ''} ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            className={`group relative flex flex-col gap-1.5 p-3 transition-all duration-150 cursor-pointer ${bgClass} ${borderClass} ${isUpdating ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
             {isUpdating && (
                  <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center z-20">
@@ -42,16 +64,16 @@ const TaskListItem = ({ task, onSelect, isSelected, onQuickTransition, updatingT
             )}
             
             <div className="flex justify-between items-center text-xs text-gray-500">
-                <span>{task.id}</span>
+                <span className={isSelected ? 'font-semibold text-indigo-700' : ''}>{task.id}</span>
                 <span>{timeDisplay}</span>
             </div>
 
             <div className="flex justify-between items-start">
-                 <p className={`font-bold break-words pr-2 ${isClosed ? 'text-gray-600' : 'text-gray-900'}`}>{task.title}</p>
-                {isClosed && <span className="text-sm text-gray-500 flex-shrink-0 transition-opacity duration-150 group-hover:opacity-0">Close</span>}
+                 <p className={`font-bold break-words pr-2 ${isClosed ? 'text-gray-600' : 'text-gray-900'} ${isSelected ? 'text-indigo-900' : ''}`}>{task.title}</p>
+                {isClosed && <span className="text-sm text-gray-500 flex-shrink-0 transition-opacity duration-150 group-hover:opacity-0">Closed</span>}
             </div>
 
-            <p className={`text-sm ${isClosed ? 'text-gray-500' : 'text-gray-600'}`}>{departmentAndLabel.trim()}</p>
+            <p className={`text-sm ${isClosed ? 'text-gray-500' : 'text-gray-600'} ${isSelected ? 'text-indigo-700' : ''}`}>{departmentAndLabel.trim()}</p>
 
             {!isClosed && (
                 // === ปรับแก้ spacing ของส่วน badge ===

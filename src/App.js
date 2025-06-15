@@ -37,6 +37,7 @@ function App() {
     const [showConfig, setShowConfig] = useState(false);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     
     const [filters, setFilters] = useState({ 
         status: [], 
@@ -161,22 +162,27 @@ function App() {
 
     return (
         <div className="flex h-screen bg-gray-100 text-gray-800">
-            <Sidebar
-                view={view}
-                setView={setView}
-                activeTaskCount={activeTaskCount}
-                onCreateClick={() => setIsCreateModalOpen(true)}
-                onConfigClick={() => setShowConfig(true)}
-            />
-            <div className="flex-1 flex flex-col min-w-0">
-                <Header
-                    searchTerm={searchTerm} setSearchTerm={setSearchTerm}
-                    filters={filters} setFilters={setFilters}
-                    dateRange={dateRange} setDateRange={setDateRange}
-                    filterOptions={filterOptions} isConnected={isConnected}
-                    isOfficeHours={isOfficeHours} lastRefreshTime={lastRefreshTime}
-                    onRefresh={() => loadJiraData(false)}
-                />
+                                        
+       <Sidebar
+    view={view}
+    setView={setView}
+    activeTaskCount={activeTaskCount}
+    onCreateClick={() => setIsCreateModalOpen(true)}
+    onConfigClick={() => setShowConfig(true)}
+    isCollapsed={isSidebarCollapsed}
+    setIsCollapsed={setIsSidebarCollapsed}
+/>
+    
+    <div className="flex-1 flex flex-col min-w-0">
+        <Header
+            searchTerm={searchTerm} setSearchTerm={setSearchTerm}
+            filters={filters} setFilters={setFilters}
+            dateRange={dateRange} setDateRange={setDateRange}
+            filterOptions={filterOptions} isConnected={isConnected}
+            isOfficeHours={isOfficeHours} lastRefreshTime={lastRefreshTime}
+            onRefresh={() => loadJiraData(false)}
+            onToggleSidebar={() => setIsSidebarCollapsed(prev => !prev)}    
+        />
                 <main className="flex-1 overflow-y-auto">
                     {loading && <div className="w-full h-full flex items-center justify-center"><p className="font-semibold">Loading tasks...</p></div>}
                     

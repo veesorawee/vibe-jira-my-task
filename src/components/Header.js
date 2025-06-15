@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Search, SlidersHorizontal, RefreshCw, Radio } from 'lucide-react';
+import { Search, SlidersHorizontal, RefreshCw, Radio, Menu } from 'lucide-react';
 import FilterPopover from './FilterPopover';
 import { useOutsideClick } from '../hooks/useOutsideClick';
 
@@ -14,7 +14,8 @@ const Header = ({
     isConnected,
     isOfficeHours,
     lastRefreshTime,
-    onRefresh
+    onRefresh,
+    onToggleSidebar
 }) => {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isStatusOpen, setIsStatusOpen] = useState(false);
