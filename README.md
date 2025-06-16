@@ -4,7 +4,7 @@ A personal and interactive web application for managing and visualizing your ass
 
 > **AI-Generated Repository**
 >
-> **This entire repository, including all code, documentation, and project structure, was generated through collaboration with multiple AI language models including Gemini (Google), Claude (Anthropic) and ChatGPT (OpenAI), Gemini (Google)** The development process was iterative and driven by a series of conversational prompts to build features, design the UI, and structure the application. No single line of code was written manually - everything was generated through AI assistance.
+> **This entire repository, including all code, documentation, and project structure, was generated through collaboration with multiple AI language models including Gemini (Google), Claude (Anthropic) and ChatGPT (OpenAI)** The development process was iterative and driven by a series of conversational prompts to build features, design the UI, and structure the application. No single line of code was written manually - everything was generated through AI assistance.
 
 ## 🎯 Who Is This For?
 
@@ -108,22 +108,36 @@ Terminal is a program on your Mac that lets you control your computer with text 
 
 Homebrew is a tool that makes it easy to install other programs on your Mac.
 
-1. Copy this entire command (triple-click to select all):
+#### 🍎 If you're using Apple Silicon (M1, M2, M3):
+
+1. Copy this command:
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-2. Paste it into Terminal (Command + V)
-3. Press `Enter`
-4. **It will ask for your Mac password** - type it and press Enter
-   - Note: You won't see any characters while typing your password - this is normal!
-5. Wait... this might take 5-10 minutes
-6. When it's done, you'll see "Installation successful!"
+2. Paste it into Terminal (Command + V) and press Enter  
+3. Enter your Mac password when prompted (you won't see it typed)
+4. Once installed, run this command to set up Homebrew for Apple Silicon:
+```bash
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+```
 
-**Troubleshooting Homebrew Installation:**
-- If you see "Command Line Tools for Xcode" popup, click "Install" and wait
+This ensures that you can use `brew` in every Terminal session.
+
+---
+
+#### 🍏 If you're using an Intel Mac:
+
+Just run the same installation command above.  
+Homebrew will automatically install under `/usr/local` for Intel.
+
+---
+
+#### 🔧 Troubleshooting Homebrew Installation:
+
+- If you see "Command Line Tools for Xcode" popup, click "Install"
 - If it says Homebrew is already installed, that's fine! Continue to the next step
-
 ### Step 3: Install Required Programs
 
 Now we'll install Node.js and Git using Homebrew.
