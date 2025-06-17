@@ -119,6 +119,37 @@ class JiraAPI {
         }
     }
     
+    async addComment(issueId, comment) {
+        const body = {
+            body: {
+                type: "doc",
+                version: 1,
+                content: [
+                    {
+                        type: "paragraph",
+                        content: [
+                            {
+                                type: "text",
+                                text: comment
+                            }
+                        ]
+                    }
+                ]
+            }
+        };
+
+        const response = await fetch(`${this.proxyURL}/issue/${issueId}/comment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to add comment: ${errorText}`);
+        }
+        return await response.json();
+    }
     // transformJiraIssues and other methods remain largely the same...
     transformJiraIssues(jiraIssues) {
         return jiraIssues.map(issue => {
